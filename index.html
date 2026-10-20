@@ -630,12 +630,17 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const LOGO = 'logo-trk.png';
-const PANEL_URL = 'Panel de control de Wix › TRK QR Code Generator';
+const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.0.1', date: '2026-10-20', items: [
+    'El panel vive en la página privada theroofingknight.com/trk-qr-panel (Wix Studio no admite páginas de dashboard con código).',
+    'Clave de acceso: el panel la pide una vez por equipo y la envía en cada operación; el servidor la compara con el secreto TRK_PANEL_KEY.',
+    'Configuración › «Olvidar clave en este equipo».'
+  ] },
   { version: '1.0.0', date: '2026-10-20', items: [
     'Primera versión de TRK QR Code Generator, basada en OZ QR Code Generator 0.3.0, dentro del panel de control de Wix de theroofingknight.com.',
     'QR estáticos y dinámicos de 13 tipos con enlaces cortos theroofingknight.com/q/, pausa, cambio de destino y descarga en PNG, SVG, JPG y GIF.',
@@ -645,7 +650,7 @@ const CHANGELOG = [
 ];
 
 const ROADMAP = [
-  { v: '1.0', t: 'Puesta en marcha en Wix TRK', d: 'Panel privado, redirector theroofingknight.com/q/, páginas de destino, tarjetas y ubicación por país.', s: 'now' }
+  { v: '1.0', t: 'Puesta en marcha en Wix TRK', d: 'Panel en página privada con clave, redirector theroofingknight.com/q/, páginas de destino, tarjetas y ubicación por país.', s: 'now' }
 ];
 
 const ICONS = {
@@ -948,9 +953,26 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
-/* Puente con Wix. El panel vive en un iframe dentro de la página "TRK QR Code Generator" del
-   panel de control de Wix; esa página llama a backend/panel.web.js (solo administradores) y
-   devuelve la respuesta. Este código no guarda datos: todo vive en las colecciones de Wix. */
+/* Clave de acceso del panel. Se guarda solo en este navegador (si se pide recordarla) y viaja en cada
+   llamada; el servidor la compara con el secreto TRK_PANEL_KEY. Nunca va en el código. */
+const Clave = (() => {
+  const LLAVE = 'trk-qr-clave';
+  let memoria = '';
+  const leer = () => { try { return localStorage.getItem(LLAVE) || ''; } catch { return ''; } };
+  return {
+    get: () => memoria || leer(),
+    set: (v, recordar) => {
+      memoria = v;
+      try { if (recordar) localStorage.setItem(LLAVE, v); else localStorage.removeItem(LLAVE); } catch { /* sin almacenamiento: queda en memoria */ }
+    },
+    clear: () => { memoria = ''; try { localStorage.removeItem(LLAVE); } catch { /* nada */ } }
+  };
+})();
+const ES_CLAVE_INVALIDA = /clave de acceso/i;
+
+/* Puente con Wix. El panel vive en un iframe dentro de la página privada "TRK QR Panel" del sitio;
+   esa página llama a backend/panel.web.js (exige la clave de acceso) y devuelve la respuesta.
+   Este código no guarda datos: todo vive en las colecciones de Wix. */
 const Remoto = (() => {
   const pendientes = new Map();
   let siguiente = 1;
@@ -964,12 +986,12 @@ const Remoto = (() => {
     if (m.ok) p.resolve(m.data); else p.reject(new Error(m.error || 'El servidor no pudo completar la operación.'));
   });
   function llamar(metodo, ...args) {
-    if (!enWix) return Promise.reject(new Error('Abre el panel desde tu panel de control de Wix.'));
+    if (!enWix) return Promise.reject(new Error(`Abre el panel desde ${PANEL_URL}.`));
     const id = siguiente++;
     return new Promise((resolve, reject) => {
       const reloj = setTimeout(() => { pendientes.delete(id); reject(new Error('Wix no respondió a tiempo. Revisa tu conexión y vuelve a intentarlo.')); }, 45000);
       pendientes.set(id, { resolve, reject, reloj });
-      window.parent.postMessage({ oz: 'llamada', id, metodo, args }, '*');
+      window.parent.postMessage({ oz: 'llamada', id, metodo, args, clave: Clave.get() }, '*');
     });
   }
   return { llamar, enWix };
@@ -4329,8 +4351,8 @@ function renderSettings() {
         <dl class="kv">
           <dt>Estado</dt><dd>${Remoto.enWix ? '<span class="pill ok">Conectado a Wix</span>' : '<span class="pill paused">Sin conexión</span>'}</dd>
           <dt>Servidor</dt><dd>Wix Velo en theroofingknight.com</dd>
-          <dt>Panel privado</dt><dd>${PANEL_URL}</dd>
-          <dt>Datos</dt><dd>Códigos, empresas y tarjetas se guardan en las colecciones de tu sitio Wix (solo administradores). Imágenes y archivos van a tu biblioteca de medios.</dd>
+          <dt>Panel privado</dt><dd>${PANEL_URL} · <button class="btn" type="button" data-action="forget-key">Olvidar clave en este equipo</button></dd>
+          <dt>Datos</dt><dd>Códigos, empresas y tarjetas se guardan en las colecciones de tu sitio Wix (solo administrador; el panel entra con la clave de acceso). Imágenes y archivos van a tu biblioteca de medios.</dd>
           <dt>Registros</dt><dd>${state.codes.length} códigos · ${state.companies.length} empresas · ${(state.cards || []).length} tarjetas</dd>
         </dl>
       </section>
@@ -4723,6 +4745,7 @@ function handleAction(action, el) {
     }
     case 'backup': exportBackup(); break;
     case 'retry-load': boot(); break;
+    case 'forget-key': Clave.clear(); toast('Clave olvidada en este equipo.'); boot(); break;
     default: break;
   }
 }
@@ -5031,6 +5054,12 @@ document.addEventListener('change', (e) => {
 document.addEventListener('submit', (e) => {
   e.preventDefault();
   const form = e.target;
+  if (form.id === 'key-form') {
+    const fd = new FormData(form);
+    Clave.set(String(fd.get('clave') || '').trim(), fd.get('recordar') === 'on');
+    boot();
+    return;
+  }
   if (form.id === 'content-form') { saveDraft(); return; }
   if (form.id === 'company-form') { saveCompany(); return; }
   if (form.id === 'download-form') { const code = findCode(form.querySelector('[type="submit"]').dataset.id); closeDialog(); if (code) downloadCode(code); return; }
@@ -5072,15 +5101,29 @@ applySidebar();
 const initial = location.hash.slice(1);
 currentView = NAV.some((n) => n.id === initial) ? initial : 'codes';
 renderNav();
-/* Carga todo desde Wix. Fuera del panel de control de Wix no hay datos: se muestra cómo abrirlo. */
+function renderClave(error) {
+  $('#view').innerHTML = `<div class="glass panel"><form class="empty form-stack" id="key-form" style="max-width:420px;margin:0 auto">
+      ${icon('settings')}<h3>Clave de acceso</h3>
+      <p>Escribe la clave del panel (secreto <b>TRK_PANEL_KEY</b> del sitio Wix).</p>
+      <input class="input" type="password" name="clave" id="key-input" autocomplete="current-password" required minlength="12" aria-label="Clave de acceso"${error ? ' aria-invalid="true"' : ''}>
+      ${error ? `<p style="color:var(--danger)">${esc(error)}</p>` : ''}
+      <label style="display:flex;gap:8px;align-items:center;justify-content:center"><input type="checkbox" name="recordar" checked> Recordar en este equipo</label>
+      <button class="btn btn-primary" type="submit">Entrar</button>
+    </form></div>`;
+  $('#key-input').focus();
+}
+
+/* Carga todo desde Wix. Fuera de la página privada del sitio no hay datos: se muestra cómo abrirlo. */
 async function boot() {
+  if (Remoto.enWix && !Clave.get()) { renderClave(); return; }
   $('#view').innerHTML = '<div class="glass panel"><div class="empty">' + icon('grid') + '<h3>Cargando desde Wix…</h3><p>Códigos, empresas, tarjetas y escaneos.</p></div></div>';
   try {
     await cargarDesdeWix();
   } catch (err) {
+    if (ES_CLAVE_INVALIDA.test(err?.message || '')) { Clave.clear(); renderClave('Clave de acceso incorrecta.'); return; }
     $('#view').innerHTML = `<div class="glass panel"><div class="empty">${icon('alert')}<h3>No se pudo conectar con Wix</h3>
       <p>${esc(err?.message || 'Error desconocido.')}</p>
-      <p class="muted">El panel solo funciona dentro de tu panel de control de Wix: <b>${esc(PANEL_URL)}</b>.</p>
+      <p class="muted">El panel solo funciona dentro de la página privada del sitio: <b>${esc(PANEL_URL)}</b>.</p>
       ${Remoto.enWix ? '<button class="btn btn-primary" data-action="retry-load">Reintentar</button>' : ''}</div></div>`;
     return;
   }
