@@ -644,12 +644,17 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.2.0';
 const LOGO = 'logo-trk.png';
 const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.2.0', date: '2026-10-20', items: [
+    'Escaneos en cola + resumen cada hora: una hoja por código y mes en lugar de una por escaneo (el plan Basic admite 1500 ítems del CMS).',
+    'La analítica se ve igual; los escaneos de la última hora aparecen «Por ubicar» hasta el resumen o hasta pulsar «Actualizar».',
+    'Al eliminar un código también se borran sus hojas de resumen.'
+  ] },
   { version: '1.1.3', date: '2026-10-20', items: [
     'Diseño del QR: módulos y esquinas en negro (#000000) por defecto, también al elegir empresa; sus colores se aplican con «Colores de …».'
   ] },
@@ -1322,10 +1327,15 @@ async function cargarDesdeWix() {
   await recargarEscaneos();
 }
 
+/* Los escaneos llegan en dos partes: la cola (última hora, uno por fila) y las hojas mensuales ya
+   resumidas (contadores por día, hora, dispositivo y país). Las hojas se convierten en los mismos
+   eventos que usa la analítica; los usuarios únicos de cada día se reparten entre esos eventos. */
 async function recargarEscaneos() {
-  const [totales, filas] = await Promise.all([
+  const desde = addDays(today(), -731).toISOString();
+  const [totales, filas, resumenes] = await Promise.all([
     Remoto.llamar('totalesDeEscaneos'),
-    Remoto.llamar('escaneosDesde', addDays(today(), -731).toISOString())
+    Remoto.llamar('escaneosDesde', desde),
+    Remoto.llamar('resumenesDeEscaneos', desde)
   ]);
   state.scanTotals = totales || {};
   const idPorSlug = new Map(state.codes.map((c) => [c.slug, c.id]));
@@ -1334,6 +1344,24 @@ async function recargarEscaneos() {
     country: f.pais || (f.ubicado ? 'Desconocido' : 'Por ubicar'), city: f.ciudad || (f.ubicado ? '—' : 'Por ubicar'), region: f.region || '',
     visitor: f.visitante || ''
   }));
+  for (const r of resumenes || []) {
+    const codeId = idPorSlug.get(r.slug);
+    if (!codeId) continue;
+    const [y, m] = String(r.mes).split('-').map(Number);
+    const celdas = Object.entries(r.celdas || {});
+    const porDia = {};
+    for (const [k, n] of celdas) { const dd = k.split('|')[0]; porDia[dd] = (porDia[dd] || 0) + Number(n); }
+    const usados = {};
+    for (const [k, n] of celdas) {
+      const [dd, hh, device, pais] = k.split('|');
+      const ts = Date.UTC(y, m - 1, Number(dd), Number(hh), 30);
+      const unicos = Math.max(1, Math.min(porDia[dd], Number(r.unicos?.[dd]) || porDia[dd]));
+      for (let i = 0; i < Number(n); i++) {
+        const j = (usados[dd] = (usados[dd] || 0) + 1) - 1;
+        state.events.push({ codeId, ts, device: device || 'Otros', country: pais || 'Desconocido', city: '—', region: '', visitor: `r|${r.slug}|${r.mes}|${dd}|${j % unicos}` });
+      }
+    }
+  }
   scanCache.clear();
 }
 
