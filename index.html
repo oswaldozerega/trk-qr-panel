@@ -644,12 +644,16 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3.0';
 const LOGO = 'logo-trk.png';
 const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.3.0', date: '2026-10-21', items: [
+    'Multi-URL con botón «Guardar contacto»: la página muestra los enlaces y un botón que guarda el contacto en iPhone o Android (.vcf).',
+    'Los datos del contacto se rellenan con los de la empresa elegida y se pueden editar.'
+  ] },
   { version: '1.2.1', date: '2026-10-20', items: [
     'Si el sitio Wix todavía no tiene publicada la función de resúmenes, el panel carga igual con los escaneos de la cola.'
   ] },
@@ -767,7 +771,7 @@ const QR_TYPES = [
       { k: 'file', label: 'Archivo PDF', type: 'file', accept: 'application/pdf', req: true, help: 'Se sube a tu biblioteca de medios de Wix (máx. 50 MB). Puedes reemplazarlo luego sin cambiar el QR.' },
       { k: 'pdfTitle', label: 'Título que verá el visitante', type: 'text', ph: 'Carta de temporada' },
       { k: 'pdfDesc', label: 'Descripción', type: 'textarea', ph: 'Una línea que explique qué contiene el documento' }] },
-  { id: 'multiurl', label: 'Multi-URL', desc: 'Varios enlaces en una página', icon: 'layers', modes: ['dynamic'],
+  { id: 'multiurl', label: 'Multi-URL', desc: 'Varios enlaces en una página, con «Guardar contacto» opcional', icon: 'layers', modes: ['dynamic'],
     fields: [
       { k: 'pageTitle', label: 'Título de la página', type: 'text', ph: 'Nombre de la marca', req: true },
       { k: 'links', label: 'Enlaces', type: 'linklist', req: true }] },
@@ -831,6 +835,9 @@ const QR_TYPES = [
       { k: 'phone', label: 'Número de WhatsApp', type: 'tel', req: true, ph: '+593 99 000 0000', help: 'Incluye el código de país.' },
       { k: 'message', label: 'Mensaje inicial', type: 'textarea' }] }
 ];
+
+/* Contacto opcional de un Multi-URL: mismos campos y claves que el QR Contacto, así el servidor usa el mismo .vcf. */
+const CONTACT_FIELDS = QR_TYPES.find((t) => t.id === 'vcard').fields.filter((f) => f.k !== 'note').map((f) => ({ ...f, req: false }));
 
 /* Idioma de lo que ve quien escanea (páginas de destino, avisos y tarjetas). El panel sigue en español.
    Debe coincidir con backend/qr/landing.js, backend/qr/paginas.js y la tarjeta de http-functions.js. */
@@ -2481,7 +2488,24 @@ function renderCreate() {
 
 function typeFieldsHTML() {
   const t = typeById(draft.type);
-  return t.fields.map((f) => fieldHTML(f, draft.data[f.k], draftErrors[f.k])).join('');
+  return t.fields.map((f) => fieldHTML(f, draft.data[f.k], draftErrors[f.k])).join('') + (draft.type === 'multiurl' ? contactBlockHTML() : '');
+}
+
+/* Bloque «Guardar contacto» del Multi-URL: una casilla y, si está marcada, los datos del contacto. */
+function contactBlockHTML() {
+  const on = Boolean(draft.data.saveContact);
+  return `<div class="field span-2"><label style="display:flex;gap:10px;align-items:center;font-weight:600;cursor:pointer">
+      <input type="checkbox" data-contact-toggle ${on ? 'checked' : ''}> Agregar botón «Guardar contacto»</label>
+      <span class="help">Muestra arriba de los enlaces un botón que guarda el contacto en iPhone o Android.</span></div>
+    ${on ? CONTACT_FIELDS.map((f) => fieldHTML(f, draft.data[f.k], draftErrors[f.k])).join('') : ''}`;
+}
+
+/* Al activar el contacto, se rellena con los datos de la empresa sin pisar lo ya escrito. */
+function fillContactFromCompany() {
+  const co = draftCompany();
+  if (!co) return;
+  const base = companyData(co, 'vcard');
+  for (const [k, v] of Object.entries(base)) if (v && !draft.data[k]) draft.data[k] = v;
 }
 
 function modePicker(t) {
@@ -2833,7 +2857,8 @@ function brandedLanding(code) {
     case 'multiurl': {
       title = d.pageTitle;
       const rows = (d.links || []).filter((l) => l.label || l.url);
-      body = rows.map((l) => btn(l.icon || 'web', l.label || serviceLabel(l.icon, code.lang), l.iconImg)).join('') || note('Agrega enlaces para verlos aquí.');
+      body = (d.saveContact ? mainBtn('user', T.saveContact) : '')
+        + (rows.map((l) => btn(l.icon || 'web', l.label || serviceLabel(l.icon, code.lang), l.iconImg)).join('') || note('Agrega enlaces para verlos aquí.'));
       break;
     }
     case 'social':
@@ -2906,6 +2931,16 @@ function validateDraft() {
     if (f.type === 'url' && !isHttpUrl(normalizeUrl(s))) errs[f.k] = 'Escribe una URL completa, por ejemplo https://www.ejemplo.com';
     if (f.type === 'email' && !isEmail(s)) errs[f.k] = 'Escribe un correo válido, por ejemplo nombre@empresa.com';
     if (f.type === 'tel' && phoneDigits(s).replace('+', '').length < 7) errs[f.k] = 'El número parece incompleto. Incluye el código de país.';
+  }
+  if (draft.type === 'multiurl' && d.saveContact) {
+    if (!String(d.firstName || '').trim() && !String(d.org || '').trim()) errs.firstName = 'Escribe al menos el nombre o la organización del contacto.';
+    for (const f of CONTACT_FIELDS) {
+      const s = String(d[f.k] ?? '').trim();
+      if (!s) continue;
+      if (f.type === 'url' && !isHttpUrl(normalizeUrl(s))) errs[f.k] = 'Escribe una URL completa, por ejemplo https://www.ejemplo.com';
+      if (f.type === 'email' && !isEmail(s)) errs[f.k] = 'Escribe un correo válido, por ejemplo nombre@empresa.com';
+      if (f.type === 'tel' && phoneDigits(s).replace('+', '').length < 7) errs[f.k] = 'El número parece incompleto. Incluye el código de país.';
+    }
   }
   if (draft.type === 'app' && !d.iosUrl && !d.androidUrl && !errs.iosUrl) errs.iosUrl = 'Agrega al menos el enlace de App Store o el de Google Play.';
   if (draft.type === 'maps') {
@@ -5104,6 +5139,7 @@ document.addEventListener('change', (e) => {
   if (el.dataset.pageCheck) { draft.page = { ...pageOf(draft), [el.dataset.pageCheck]: el.checked }; updatePreview(); return; }
   if (el.name === 'mode') { draft.mode = el.value; renderCreate(); return; }
   if (el.name === 'lang') { draft.lang = pubLang(el.value); renderCreate(); return; }
+  if (el.hasAttribute('data-contact-toggle')) { draft.data.saveContact = el.checked; if (el.checked) fillContactFromCompany(); renderCreate(); return; }
   if (el.dataset.fileKind) {
     const elegidos = Array.from(el.files || []);
     if (!elegidos.length) return;
