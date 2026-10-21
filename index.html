@@ -644,12 +644,15 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3';
 const LOGO = 'logo-trk.png';
 const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.1.3', date: '2026-10-20', items: [
+    'Diseño del QR: módulos y esquinas en negro (#000000) por defecto, también al elegir empresa; sus colores se aplican con «Colores de …».'
+  ] },
   { version: '1.1.2', date: '2026-10-20', items: [
     'Sin el margen por defecto del navegador: el panel ya no muestra una barra de scroll de unos pocos píxeles dentro del iframe.'
   ] },
@@ -877,9 +880,9 @@ const SERVICES = [
 const SOCIAL_NETWORKS = ['instagram', 'facebook', 'tiktok', 'linkedin', 'youtube', 'x', 'whatsapp', 'telegram', 'pinterest', 'spotify', 'web']
   .map((id) => SERVICES.find((s) => s.id === id));
 
-const DEFAULT_DESIGN = { fg: '#141A1F', bg: '#FFFFFF', eye: '#D2002E', dot: 'square', eyeStyle: 'square', logo: 'none', logoData: '', ecl: 'M', margin: 4 };
+const DEFAULT_DESIGN = { fg: '#000000', bg: '#FFFFFF', eye: '#000000', dot: 'square', eyeStyle: 'square', logo: 'none', logoData: '', ecl: 'M', margin: 4 };
 const DESIGN_PRESETS = [
-  { name: 'Clásico', fg: '#141A1F', bg: '#FFFFFF', eye: '#141A1F' },
+  { name: 'Clásico', fg: '#000000', bg: '#FFFFFF', eye: '#000000' },
   { name: 'TRK rojo', fg: '#000000', bg: '#FFFFFF', eye: '#D2002E' },
   { name: 'TRK carbón', fg: '#384043', bg: '#FFFFFF', eye: '#92001F' },
   { name: 'TRK amarillo', fg: '#000000', bg: '#FFCD00', eye: '#000000' }
@@ -2357,10 +2360,8 @@ function applyCompany(co, opts = {}) {
 }
 
 function applyBrand(co) {
-  const c = { ...DEFAULT_COLORS, ...(co.colors || {}) };
   draft.page = brandPage(co, draft.type, pageOf(draft));
-  draft.design.eye = c.primary;
-  if (contrastRatio(c.text, draft.design.bg) >= 4) draft.design.fg = c.text;
+  // El QR queda en negro (#000000) por defecto: los colores de la empresa se aplican solo con el botón «Colores de …».
 }
 
 function applyPerson(co, personId) {
@@ -3641,7 +3642,7 @@ function companySampleCode(co, type) {
   const page = brandPage(co, type);
   if (type === 'vcard' && person?.photo) page.avatar = person.photo;
   return { id: 'preview', slug: 'vista', type, mode: t.modes.includes('dynamic') ? 'dynamic' : 'static', status: 'active', companyId: co.id,
-    data, page, design: { ...DEFAULT_DESIGN, eye: co.colors?.primary || '#D2002E' } };
+    data, page, design: { ...DEFAULT_DESIGN } };
 }
 
 function companyPreview() {
