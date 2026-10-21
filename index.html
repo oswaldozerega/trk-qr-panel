@@ -52,7 +52,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
 h1 { font-size: clamp(1.4rem, 1.1rem + 1vw, 1.85rem); font-weight: 600; }
@@ -644,12 +644,15 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 const LOGO = 'logo-trk.png';
 const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.1.2', date: '2026-10-20', items: [
+    'Sin el margen por defecto del navegador: el panel ya no muestra una barra de scroll de unos pocos píxeles dentro del iframe.'
+  ] },
   { version: '1.1.1', date: '2026-10-20', items: [
     'La tabla de «Mis códigos QR» cabe sin barra horizontal: en anchos medianos oculta «Modificado» y acorta el destino.'
   ] },
