@@ -409,6 +409,18 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 .g-add:hover, .g-add:focus-within { border-color: var(--accent); color: var(--accent); }
 .list-row.cols-4 { grid-template-columns: minmax(150px, .9fr) minmax(0, 1fr) minmax(0, 1.4fr) auto; }
 .list-row .row-extra { grid-column: 1 / -1; }
+.row-btns { display: flex; gap: 2px; align-items: center; }
+.row-btns .icon-btn { width: 32px; height: 32px; }
+.row-btns .icon-btn:disabled { opacity: .3; cursor: default; }
+/* Con poco ancho, cada enlace ocupa varias líneas: ícono y flechas arriba, texto y URL debajo. */
+.list-editor { container-type: inline-size; }
+@container (max-width: 700px) {
+  .list-row.cols-4 { grid-template-columns: minmax(0, 1fr) auto; }
+  .list-row.cols-4 > .svc-pick { grid-row: 1; grid-column: 1; }
+  .list-row.cols-4 > .row-btns { grid-row: 1; grid-column: 2; }
+  .list-row.cols-4 > input { grid-column: 1 / -1; }
+  .list-row.cols-4 { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+}
 .svc-pick { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .svc-dot { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; overflow: hidden; }
 .svc-dot .ic { width: 16px; height: 16px; }
@@ -644,12 +656,15 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.3.1';
 const LOGO = 'logo-trk.png';
 const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.3.1', date: '2026-10-21', items: [
+    'Multi-URL y Redes sociales: flechas para subir o bajar cada enlace y cambiar su orden en la página.'
+  ] },
   { version: '1.3.0', date: '2026-10-21', items: [
     'Multi-URL con botón «Guardar contacto»: la página muestra los enlaces y un botón que guarda el contacto en iPhone o Android (.vcf).',
     'Los datos del contacto se rellenan con los de la empresa elegida y se pueden editar.'
@@ -722,6 +737,8 @@ const ICONS = {
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   chevL: '<path d="M15 6l-6 6 6 6"/>',
   chevR: '<path d="M9 6l6 6-6 6"/>',
+  chevU: '<path d="M6 15l6-6 6 6"/>',
+  chevD: '<path d="M6 9l6 6 6-6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
   monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
@@ -2528,6 +2545,15 @@ function serviceOptions(selected, ids) {
   return list.map((s) => `<option value="${s.id}" ${selected === s.id ? 'selected' : ''}>${esc(s.label)}</option>`).join('');
 }
 
+/* Subir, bajar y quitar una fila de una lista (enlaces del Multi-URL, redes sociales). */
+function rowButtons(list, i, total, nombre) {
+  return `<div class="row-btns">
+    <button class="icon-btn" type="button" data-action="move-row" data-list="${list}" data-idx="${i}" data-dir="-1" aria-label="Subir ${nombre} ${i + 1}" title="Subir" ${i === 0 ? 'disabled' : ''}>${icon('chevU')}</button>
+    <button class="icon-btn" type="button" data-action="move-row" data-list="${list}" data-idx="${i}" data-dir="1" aria-label="Bajar ${nombre} ${i + 1}" title="Bajar" ${i === total - 1 ? 'disabled' : ''}>${icon('chevD')}</button>
+    <button class="icon-btn" type="button" data-action="remove-row" data-list="${list}" data-idx="${i}" aria-label="Quitar ${nombre} ${i + 1}" title="Quitar" ${total < 2 ? 'disabled' : ''}>${icon('trash')}</button>
+  </div>`;
+}
+
 function fieldHTML(f, value, err, scope = 'data') {
   const id = `f-${scope}-${f.k}`;
   const helpId = f.help ? `${id}-help` : '';
@@ -2567,7 +2593,7 @@ function fieldHTML(f, value, err, scope = 'data') {
             <select class="input" aria-label="Ícono del enlace ${i + 1}" data-list="links" data-idx="${i}" data-key="icon">${serviceOptions(l.icon || 'web')}</select></div>
           <input class="input" aria-label="Texto del botón ${i + 1}" placeholder="${esc(svc.id === 'custom' ? 'Texto del botón' : svc.label)}" data-list="links" data-idx="${i}" data-key="label" value="${esc(l.label)}">
           <input class="input" type="url" aria-label="URL del enlace ${i + 1}" placeholder="https://" data-list="links" data-idx="${i}" data-key="url" value="${esc(l.url)}">
-          <button class="icon-btn" type="button" data-action="remove-row" data-list="links" data-idx="${i}" aria-label="Quitar enlace ${i + 1}" ${links.length < 2 ? 'disabled' : ''}>${icon('trash')}</button>
+          ${rowButtons('links', i, links.length, 'enlace')}
           ${l.icon === 'custom' ? `<div class="row-extra"><label class="btn btn-ghost btn-sm">${icon('upload')}${customSrc ? 'Cambiar ícono' : 'Subir ícono propio'}<input type="file" accept="image/*" class="sr-only" data-img-upload="draft.data.links.${i}.iconImg" data-img-kind="icon"></label></div>` : ''}
           </div>`;
         }).join('')}
@@ -2586,7 +2612,7 @@ function fieldHTML(f, value, err, scope = 'data') {
             <select class="input" aria-label="Red ${i + 1}" data-list="socials" data-idx="${i}" data-key="network">${serviceOptions(s.network, SOCIAL_NETWORKS.map((n) => n.id))}</select></div>
           <input class="input" aria-label="Nombre del botón ${i + 1}" placeholder="${esc(svc.label)}" data-list="socials" data-idx="${i}" data-key="label" value="${esc(s.label || '')}">
           <input class="input" type="url" aria-label="Enlace de la red ${i + 1}" placeholder="https://" data-list="socials" data-idx="${i}" data-key="url" value="${esc(s.url)}">
-          <button class="icon-btn" type="button" data-action="remove-row" data-list="socials" data-idx="${i}" aria-label="Quitar red ${i + 1}" ${rows.length < 2 ? 'disabled' : ''}>${icon('trash')}</button></div>`;
+          ${rowButtons('socials', i, rows.length, 'red')}</div>`;
         }).join('')}
         </div>
         <button class="btn btn-ghost" type="button" data-action="add-row" data-list="socials" style="align-self:flex-start">${icon('plus')}Agregar red</button>
@@ -4742,6 +4768,18 @@ function handleAction(action, el) {
       const list = el.dataset.list;
       draft.data[list] = [...(draft.data[list] || []), list === 'links' ? { icon: 'web', label: '', url: '' } : { network: 'instagram', label: '', url: '' }];
       rerenderTypeFields(); updatePreviewSoon(); break;
+    }
+    case 'move-row': {
+      const list = el.dataset.list;
+      const rows = [...(draft.data[list] || [])];
+      const from = Number(el.dataset.idx), to = from + Number(el.dataset.dir);
+      if (to < 0 || to >= rows.length) break;
+      [rows[from], rows[to]] = [rows[to], rows[from]];
+      draft.data[list] = rows;
+      rerenderTypeFields(); updatePreviewSoon();
+      // El foco sigue a la fila movida para poder seguir moviéndola con el teclado.
+      $(`[data-action="move-row"][data-list="${list}"][data-idx="${to}"][data-dir="${el.dataset.dir}"]`)?.focus();
+      break;
     }
     case 'remove-row': {
       const list = el.dataset.list;
