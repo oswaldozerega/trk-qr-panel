@@ -93,7 +93,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .nav-btn[aria-current="page"] .ic { color: var(--accent); }
 .nav-btn .ic { width: 20px; height: 20px; flex: none; }
 .nav-sep { height: 1px; background: var(--line); margin: 6px 8px; }
-.sb-foot { margin-top: auto; display: flex; flex-direction: column; gap: 12px; }
+.sb-foot { display: flex; flex-direction: column; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .theme-switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: var(--r-md); background: var(--hover); }
 .theme-switch button { display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: transparent; padding: 7px 4px; border-radius: var(--r-sm); cursor: pointer; color: var(--muted); font-size: .76rem; font-weight: 600; }
 .theme-switch button[aria-checked="true"] { background: var(--glass-strong); color: var(--fg); box-shadow: var(--shadow-sm); }
@@ -601,12 +601,12 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
       <img class="brand-logo" src="logo-trk.png" alt="Logo de The Roofing Knight" width="42" height="42">
       <div class="brand-text lbl"><strong>TRK QR</strong><span>Code Generator</span></div>
     </div>
-    <nav class="nav" id="nav" aria-label="Secciones"></nav>
-    <button class="icon-btn collapse-btn" id="collapse-btn" type="button" data-action="toggle-sidebar" aria-label="Contraer menú" aria-expanded="true" title="Contraer menú"></button>
     <div class="sb-foot">
       <div class="theme-switch" id="theme-switch" role="radiogroup" aria-label="Tema de color"></div>
       <div class="version-tag" title="Versión del panel"><span class="lbl">Versión</span><b id="version-label"></b></div>
     </div>
+    <nav class="nav" id="nav" aria-label="Secciones"></nav>
+    <button class="icon-btn collapse-btn" id="collapse-btn" type="button" data-action="toggle-sidebar" aria-label="Contraer menú" aria-expanded="true" title="Contraer menú"></button>
   </aside>
   <div class="scrim" data-action="close-nav"></div>
   <main id="main">
@@ -630,12 +630,17 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.1.0';
 const LOGO = 'logo-trk.png';
 const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.1.0', date: '2026-10-20', items: [
+    'Idioma de la página al escanear (English o Español) en cada QR dinámico y en cada tarjeta; por defecto, English.',
+    'Las vistas previas, los avisos (pausa, sin destino) y los botones por defecto siguen el idioma elegido.',
+    'Tema y versión justo debajo del logo del menú lateral.'
+  ] },
   { version: '1.0.1', date: '2026-10-20', items: [
     'El panel vive en la página privada theroofingknight.com/trk-qr-panel (Wix Studio no admite páginas de dashboard con código).',
     'Clave de acceso: el panel la pide una vez por equipo y la envía en cada operación; el servidor la compara con el secreto TRK_PANEL_KEY.',
@@ -795,6 +800,31 @@ const QR_TYPES = [
       { k: 'phone', label: 'Número de WhatsApp', type: 'tel', req: true, ph: '+593 99 000 0000', help: 'Incluye el código de país.' },
       { k: 'message', label: 'Mensaje inicial', type: 'textarea' }] }
 ];
+
+/* Idioma de lo que ve quien escanea (páginas de destino, avisos y tarjetas). El panel sigue en español.
+   Debe coincidir con backend/qr/landing.js, backend/qr/paginas.js y la tarjeta de http-functions.js. */
+const PUB_LANGS = [['en', 'English'], ['es', 'Español']];
+const PUB_TXT = {
+  en: { website: 'Website', whatsapp: 'Message us on WhatsApp', directions: 'Get directions', yourApp: 'Your app', appStore: 'Download on the App Store',
+    googlePlay: 'Get it on Google Play', openSite: 'Open the website', ourLocation: 'Our location', landmark: 'Landmark', call: 'Call',
+    pdfDoc: 'PDF document', viewDoc: 'View document', download: 'Download', files: 'Files', filesN: (n) => `${n} files`, saveContact: 'Save contact',
+    exchange: 'Exchange contacts', sendEmail: 'Send email' },
+  es: { website: 'Sitio web', whatsapp: 'Escríbenos por WhatsApp', directions: 'Cómo llegar', yourApp: 'Tu app', appStore: 'Descargar en App Store',
+    googlePlay: 'Disponible en Google Play', openSite: 'Abrir el sitio web', ourLocation: 'Nuestra ubicación', landmark: 'Referencia', call: 'Llamar',
+    pdfDoc: 'Documento PDF', viewDoc: 'Ver documento', download: 'Descargar', files: 'Archivos', filesN: (n) => `${n} archivos`, saveContact: 'Guardar contacto',
+    exchange: 'Intercambiar contactos', sendEmail: 'Enviar correo' }
+};
+const pubLang = (v) => (v === 'es' ? 'es' : 'en');
+const pubTxt = (v) => PUB_TXT[pubLang(v)];
+/* Etiqueta por defecto de un servicio en el idioma de la página (las marcas no se traducen). */
+const SERVICE_ES = { web: 'Sitio web', email: 'Correo', phone: 'Llamar', maps: 'Ubicación', menu: 'Menú', booking: 'Reservas', store: 'Tienda en línea',
+  review: 'Déjanos tu reseña', pdf: 'Documento PDF', download: 'Descargar', custom: 'Ícono propio' };
+function serviceLabel(id, lang) { return (pubLang(lang) === 'es' && SERVICE_ES[id]) || serviceById(id).label; }
+function langPicker(name, value, help) {
+  return `<fieldset class="mode-pick"><legend>Idioma de la página al escanear</legend>
+    ${PUB_LANGS.map(([v, label]) => `<label class="mode-opt"><input type="radio" name="${name}" value="${v}" ${pubLang(value) === v ? 'checked' : ''}><div><strong>${label}</strong><span>${v === 'en' ? 'Textos y botones en inglés.' : 'Textos y botones en español.'}</span></div></label>`).join('')}
+  </fieldset>${help ? `<p class="help">${help}</p>` : ''}`;
+}
 
 /* Preloaded services for Multi-URL buttons and social pages. Colors are each brand's recognisable hue. */
 const SERVICES = [
@@ -1322,7 +1352,7 @@ async function guardarTarjetaRemota(card) {
   const slug = cardSlug(card);
   const publica = {
     id: slug, nombre: card.nombre, cargo: card.cargo, empresa: card.empresa, telefono: card.telefono, correo: card.correo,
-    direccion: card.direccion, web: card.web, acento: card.acento,
+    direccion: card.direccion, web: card.web, acento: card.acento, idioma: pubLang(card.idioma),
     fotoMini: await miniatura(card.foto, 240, 'image/jpeg'), logoMini: await miniatura(card.logo, 200, 'image/png')
   };
   const { publicada, _wixId, ...panel } = card;
@@ -2225,13 +2255,14 @@ function startDraft(code, type, companyId) {
   if (code) {
     editingId = code.id;
     draft = clone(code);
+    draft.lang = pubLang(draft.lang);
     draft.page = pageOf(draft);
     return;
   }
   editingId = null;
   const t = typeById(type || 'url');
   draft = { id: uid(), slug: newSlug(), title: '', client: '', companyId: null, personId: null, type: t.id, mode: t.modes[0], status: 'active', pauses: [],
-    data: emptyData(t.id), page: pageOf({ page: { gallery: [] } }), design: { ...DEFAULT_DESIGN } };
+    lang: 'en', data: emptyData(t.id), page: pageOf({ page: { gallery: [] } }), design: { ...DEFAULT_DESIGN } };
   const co = companyId ? findCompany(companyId) : null;
   if (co) applyCompany(co, { brand: true });
 }
@@ -2254,10 +2285,10 @@ function companyData(co, type) {
     case 'multiurl': {
       d.pageTitle = co.name;
       const links = [];
-      if (co.website) links.push({ icon: 'web', label: 'Website', url: co.website });
+      if (co.website) links.push({ icon: 'web', label: pubTxt(draft?.lang).website, url: co.website });
       for (const s of socials) links.push({ icon: s.network, label: s.label || serviceById(s.network).label, url: s.url });
-      if (co.whatsapp) links.push({ icon: 'whatsapp', label: 'Message us on WhatsApp', url: whatsappUrl({ phone: co.whatsapp }) });
-      if (addr) links.push({ icon: 'maps', label: 'Get directions', url: mapsUrl({ address: addr, lat: co.lat, lng: co.lng }) });
+      if (co.whatsapp) links.push({ icon: 'whatsapp', label: pubTxt(draft?.lang).whatsapp, url: whatsappUrl({ phone: co.whatsapp }) });
+      if (addr) links.push({ icon: 'maps', label: pubTxt(draft?.lang).directions, url: mapsUrl({ address: addr, lat: co.lat, lng: co.lng }) });
       if (links.length) d.links = links;
       break;
     }
@@ -2411,7 +2442,8 @@ function modePicker(t) {
   return `<fieldset class="mode-pick"><legend>Tipo de QR</legend>
     ${opt('dynamic', 'Dinámico', 'Pasa por theroofingknight.com: mide escaneos, cambia el destino o pausa sin reimprimir.')}
     ${opt('static', 'Estático', 'El contenido va dentro del código. Funciona siempre, pero no se mide ni se edita.')}
-  </fieldset>`;
+  </fieldset>
+  ${draft.mode === 'dynamic' ? langPicker('lang', draft.lang, 'Se aplica a la página de destino y a los avisos (código en pausa o sin destino). Puedes cambiarlo después sin reimprimir.') : ''}`;
 }
 
 function serviceOptions(selected, ids) {
@@ -2724,6 +2756,7 @@ function directLanding(code) {
 /* Pages hosted by the panel: branded with the client's logo, cover, background and colors. */
 function brandedLanding(code) {
   const d = code.data || {};
+  const T = pubTxt(code.lang);
   const P = pageOf(code);
   const radius = BTN_RADIUS[P.btnStyle] || BTN_RADIUS.rounded;
   const img = (ref) => ImageStore.url(ref);
@@ -2747,31 +2780,31 @@ function brandedLanding(code) {
     case 'multiurl': {
       title = d.pageTitle;
       const rows = (d.links || []).filter((l) => l.label || l.url);
-      body = rows.map((l) => btn(l.icon || 'web', l.label || serviceById(l.icon).label, l.iconImg)).join('') || note('Agrega enlaces para verlos aquí.');
+      body = rows.map((l) => btn(l.icon || 'web', l.label || serviceLabel(l.icon, code.lang), l.iconImg)).join('') || note('Agrega enlaces para verlos aquí.');
       break;
     }
     case 'social':
       title = d.pageTitle; sub = d.bio;
-      body = (d.socials || []).filter((s) => s.url || s.label).map((s) => btn(s.network, s.label || serviceById(s.network).label)).join('') || note('Agrega tus redes para verlas aquí.');
+      body = (d.socials || []).filter((s) => s.url || s.label).map((s) => btn(s.network, s.label || serviceLabel(s.network, code.lang))).join('') || note('Agrega tus redes para verlas aquí.');
       break;
     case 'app':
-      title = d.appName || 'Your app'; sub = d.appDesc;
-      body = gallery + (d.iosUrl ? btn('appstore', 'Download on the App Store') : '') + (d.androidUrl ? btn('googleplay', 'Get it on Google Play') : '')
-        + (d.fallbackUrl ? btn('web', 'Open the website') : '') + note('Al escanear, cada teléfono va directo a su tienda. Esta página se muestra en computadoras.');
+      title = d.appName || T.yourApp; sub = d.appDesc;
+      body = gallery + (d.iosUrl ? btn('appstore', T.appStore) : '') + (d.androidUrl ? btn('googleplay', T.googlePlay) : '')
+        + (d.fallbackUrl ? btn('web', T.openSite) : '') + note('Al escanear, cada teléfono va directo a su tienda. Esta página se muestra en computadoras.');
       break;
     case 'maps':
-      title = d.placeName || 'Our location'; sub = d.address;
+      title = d.placeName || T.ourLocation; sub = d.address;
       body = gallery + (d.hours ? `<div class="lp-info">${icon('clock')}<span>${esc(d.hours)}</span></div>` : '')
-        + (d.reference ? `<div class="lp-info">${icon('pin')}<span>Landmark: ${esc(d.reference)}</span></div>` : '')
+        + (d.reference ? `<div class="lp-info">${icon('pin')}<span>${T.landmark}: ${esc(d.reference)}</span></div>` : '')
         + (d.parking ? `<div class="lp-info">${icon('car')}<span>${esc(d.parking)}</span></div>` : '')
-        + mainBtn('pin', 'Get directions') + (d.phone ? btn('phone', `Call · ${d.phone}`) : '');
+        + mainBtn('pin', T.directions) + (d.phone ? btn('phone', `${T.call} · ${d.phone}`) : '');
       break;
     case 'pdf':
-      title = d.pdfTitle || 'PDF document'; sub = d.pdfDesc;
-      body = btn('pdf', d.file?.name || 'Sube un PDF') + mainBtn('eye', 'View document') + btn('download', 'Download');
+      title = d.pdfTitle || T.pdfDoc; sub = d.pdfDesc;
+      body = btn('pdf', d.file?.name || 'Sube un PDF') + mainBtn('eye', T.viewDoc) + btn('download', T.download);
       break;
     case 'files':
-      title = d.pageTitle || 'Files'; sub = `${(d.files || []).length} files`;
+      title = d.pageTitle || T.files; sub = T.filesN((d.files || []).length);
       body = (d.files || []).map((f) => btn('download', f.name)).join('') || note('Agrega archivos para verlos aquí.');
       break;
     case 'vcard': {
@@ -2779,7 +2812,7 @@ function brandedLanding(code) {
       sub = [d.jobTitle, d.org].filter(Boolean).join(' · ');
       initials = ((d.firstName || ' ')[0] + (d.lastName || ' ')[0]).trim().toUpperCase();
       body = (d.mobile ? btn('phone', d.mobile) : '') + (d.email ? btn('email', d.email) : '') + (d.website ? btn('web', d.website.replace(/^https?:\/\//, '')) : '')
-        + (d.city || d.country ? btn('maps', [d.city, d.country].filter(Boolean).join(', ')) : '') + mainBtn('user', 'Save contact');
+        + (d.city || d.country ? btn('maps', [d.city, d.country].filter(Boolean).join(', ')) : '') + mainBtn('user', T.saveContact);
       break;
     }
     default: break;
@@ -3680,7 +3713,7 @@ const openCardGroups = new Set();
 
 function emptyCard() {
   return { id: uid('card'), nombre: '', cargo: '', empresa: '', companyId: null, personId: null, telefono: '', correo: '', direccion: '', web: '',
-    acento: '#D2002E', foto: null, logo: null, fondo: null, fondoTipo: 'acento', gradiente: null, velo: 38, modo: 'wix', publicada: false, fecha: '', carpeta: '' };
+    acento: '#D2002E', foto: null, logo: null, fondo: null, fondoTipo: 'acento', gradiente: null, velo: 38, modo: 'wix', idioma: 'en', publicada: false, fecha: '', carpeta: '' };
 }
 function cardSlug(c) {
   if (c.slugPublico) return c.slugPublico;
@@ -3875,7 +3908,7 @@ function cardPageHTML(c) {
           <div><b>${esc(c.empresa || 'Tu empresa')}</b><small style="color:${soft}">${esc(c.direccion || '')}</small></div>
         </div>
       </div>
-      <div class="cp-actions">${btn('Save contact', true)}${btn('Exchange contacts')}${btn('Call')}${btn('Send email')}</div>
+      <div class="cp-actions">${btn(pubTxt(c.idioma).saveContact, true)}${btn(pubTxt(c.idioma).exchange)}${btn(pubTxt(c.idioma).call)}${btn(pubTxt(c.idioma).sendEmail)}</div>
     </div>
     <div class="lp-foot">${c.modo === 'wix' ? esc(cardUrl(c).replace('https://', '')) : 'vCard dentro del QR · sin página'}</div></div></div>`;
 }
@@ -4006,6 +4039,7 @@ function renderCardEditor() {
             <label class="mode-opt"><input type="radio" name="card-modo" value="wix" ${c.modo === 'wix' ? 'checked' : ''}><div><strong>Página de la tarjeta (Wix)</strong><span>Abre tu página con Guardar contacto, Intercambiar, Llamar y Correo. Registra cada escaneo. Necesita internet.</span></div></label>
             <label class="mode-opt"><input type="radio" name="card-modo" value="vcard" ${c.modo === 'vcard' ? 'checked' : ''}><div><strong>Contacto dentro del QR</strong><span>El teléfono guarda el contacto directo, sin internet y sin página. No se mide.</span></div></label>
           </fieldset>
+          ${c.modo === 'wix' ? langPicker('card-idioma', c.idioma, '') : ''}
           ${c.modo === 'wix' ? `<p class="help">Enlace: <span class="mono">${esc(cardUrl(c))}</span></p>
             ${c.publicada ? '' : `<p class="help">${icon('info')} Al guardar, la tarjeta se publica en Wix y su QR empieza a funcionar.</p>`}` : ''}
         </section>
@@ -4323,6 +4357,7 @@ document.addEventListener('change', async (e) => {
   if (el.hasAttribute('data-card-company')) { applyCompanyToCard(findCompany(el.value)); renderCardEditor(); if (el.value) toast('Datos de la empresa cargados.'); return; }
   if (el.hasAttribute('data-card-person')) { applyPersonToCard(el.value); renderCardEditor(); return; }
   if (el.name === 'card-modo') { cardDraft.modo = el.value; renderCardEditor(); return; }
+  if (el.name === 'card-idioma') { cardDraft.idioma = pubLang(el.value); renderCardEditor(); return; }
   if (el.dataset.cardImg) {
     const file = el.files?.[0];
     if (!file) return;
@@ -5015,6 +5050,7 @@ document.addEventListener('change', (e) => {
   if (el.hasAttribute('data-person-pick')) { applyPerson(draftCompany(), el.value); renderCreate(); return; }
   if (el.dataset.pageCheck) { draft.page = { ...pageOf(draft), [el.dataset.pageCheck]: el.checked }; updatePreview(); return; }
   if (el.name === 'mode') { draft.mode = el.value; renderCreate(); return; }
+  if (el.name === 'lang') { draft.lang = pubLang(el.value); renderCreate(); return; }
   if (el.dataset.fileKind) {
     const elegidos = Array.from(el.files || []);
     if (!elegidos.length) return;
