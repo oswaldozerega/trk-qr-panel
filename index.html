@@ -644,12 +644,15 @@ fieldset.bare legend { padding: 0; margin-bottom: 6px; }
 
 /* ───────────────────────── Constants ───────────────────────── */
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const LOGO = 'logo-trk.png';
 const PANEL_URL = 'theroofingknight.com/trk-qr-panel';
 const DEFAULT_SHORT_BASE = 'theroofingknight.com/q/';
 
 const CHANGELOG = [
+  { version: '1.2.1', date: '2026-10-20', items: [
+    'Si el sitio Wix todavía no tiene publicada la función de resúmenes, el panel carga igual con los escaneos de la cola.'
+  ] },
   { version: '1.2.0', date: '2026-10-20', items: [
     'Escaneos en cola + resumen cada hora: una hoja por código y mes en lugar de una por escaneo (el plan Basic admite 1500 ítems del CMS).',
     'La analítica se ve igual; los escaneos de la última hora aparecen «Por ubicar» hasta el resumen o hasta pulsar «Actualizar».',
@@ -1335,7 +1338,8 @@ async function recargarEscaneos() {
   const [totales, filas, resumenes] = await Promise.all([
     Remoto.llamar('totalesDeEscaneos'),
     Remoto.llamar('escaneosDesde', desde),
-    Remoto.llamar('resumenesDeEscaneos', desde)
+    // Si el sitio aún no tiene la versión con resúmenes publicada, el panel sigue con la cola sola.
+    Remoto.llamar('resumenesDeEscaneos', desde).catch((err) => { console.warn('Resúmenes de escaneos no disponibles:', err.message); return []; })
   ]);
   state.scanTotals = totales || {};
   const idPorSlug = new Map(state.codes.map((c) => [c.slug, c.id]));
